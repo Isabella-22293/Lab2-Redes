@@ -39,13 +39,13 @@ Se desarrollaron dos programas para cada esquema: uno que actúa como **emisor**
 
 1. Compilar el archivo del emisor:
 
-  g++ hamming/emisor_hamming.cpp -o hamming_emisor
+  - g++ hamming/emisor_hamming.cpp -o hamming_emisor
 
 2. Ejecutar el programa:
 
-  ./hamming_emisor
+  - ./hamming_emisor
 
-## 📌 El emisor solicitará un mensaje de 4 bits (por ejemplo, 1011) y devolverá la trama de 7 bits con los bits de paridad calculados (por ejemplo, 0111011).
+📌 El emisor solicitará un mensaje de 4 bits (por ejemplo, 1011) y devolverá la trama de 7 bits con los bits de paridad calculados (por ejemplo, 0111011).
 
 ## 🔧 Introducir Error Manual
   Modifica manualmente uno o más bits de la trama para simular errores de transmisión.
@@ -55,11 +55,11 @@ Se desarrollaron dos programas para cada esquema: uno que actúa como **emisor**
 
 1. Ejecuta el receptor con python:
 
-  python Correccion/receptor.py
+  - python Correccion/receptor.py
 
 Adicional se tiene un archivo llamado pruebas.py, este es para automatizar las pruebas del receptor, usando tramas correctas generadas con el emisor y versiones con errores (1 o más bits alterados).
 ### 📝 ¿Qué hace?
-  Usa tramas generadas por el emisor.
-  Simula un error cambiando 1 o 2 bits manualmente.
-  Llama al receptor para verificar si detecta o corrige correctamente el error.
-  Muestra los resultados detallados.
+  - Usa tramas generadas por el emisor.
+  - Simula un error cambiando 1 o 2 bits manualmente.
+  - Llama al receptor para verificar si detecta o corrige correctamente el error.
+  - Muestra los resultados detallados.
