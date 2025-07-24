@@ -63,3 +63,74 @@ Adicional se tiene un archivo llamado pruebas.py, este es para automatizar las p
   - Simula un error cambiando 1 o 2 bits manualmente.
   - Llama al receptor para verificar si detecta o corrige correctamente el error.
   - Muestra los resultados detallados.
+
+
+---
+
+
+## 🛠️ Comandos de Ejecución – Detección de Errores con CRC-32
+
+### 🖥️ Emisor (Python)
+
+Ubicación del archivo:
+```
+Lab2-Redes\Deteccion\crc32_emisor.py
+```
+
+1. Ejecuta el emisor con Python:
+
+```bash
+python crc32_emisor.py
+py crc32_emisor.py
+```
+
+📌 El emisor solicitará un mensaje en binario (por ejemplo: `11010011101100`) y devolverá una trama extendida con los 32 bits de CRC agregados al final.  
+Ejemplo de salida:
+```
+Trama con CRC: 1101001110110010000101011100110011000110000001
+```
+
+---
+
+## 🔧 Introducir Error Manual
+
+Modifica manualmente uno o más bits de la trama generada para simular errores de transmisión.  
+Ejemplo:  
+```
+Original: 1101001110110010000101011100110011000110000001  
+1 error: 1101001110110010000101011100110011000110000000  
+2 errores: 1101001110110010000101011100110011001110000000
+```
+
+---
+
+### 🖥️ Receptor (C++)
+
+Ubicación del archivo:
+```
+Lab2-Redes\Deteccion\receptor.cpp
+```
+
+1. Compila el archivo receptor:
+
+```bash
+g++ receptor.cpp -o crc_receptor
+```
+
+2. Ejecuta el receptor:
+
+```bash
+./crc_receptor
+```
+
+📌 El receptor pedirá una trama binaria completa (datos + CRC). Si no se detectan errores, mostrará “Trama válida: sin errores”. Si se detectan errores, mostrará “Error detectado: trama inválida”.
+
+---
+
+### 📝 ¿Qué hace?
+
+- Toma la trama del emisor (con CRC).
+- Aplica el mismo cálculo para verificar si el CRC es correcto.
+- Detecta errores incluso si hay 1 o varios bits alterados.
+- No corrige errores, pero garantiza que datos inválidos sean descartados.
+
