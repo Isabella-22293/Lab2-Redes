@@ -32,14 +32,14 @@ string decodificar_ascii_binario(const string& binario) {
 // ===== Ejecución Receptor =====
 int main() {
     string trama;
-    cout << "Ingrese la trama recibida: ";
+    cout << "Ingrese la trama generada: ";
     cin >> trama;
 
     if (crc32_receptor(trama) == 0) {
         string mensaje_original = decodificar_ascii_binario(trama.substr(0, trama.size() - 32));
-        cout << "[RECEPTOR] Trama válida. Mensaje: " << mensaje_original << endl;
+        cout << "[RECEPTOR] Trama valida. Mensaje: " << mensaje_original << endl;
     } else {
-        cout << "[RECEPTOR] Error detectado: trama inválida." << endl;
+        cout << "[RECEPTOR] Error detectado: trama invalida." << endl;
     }
 
     return 0;
