@@ -1,29 +1,58 @@
-def verificar_y_corregir(trama):
-    bits = [int(b) for b in trama]
-    if len(bits) != 7:
-        return "Trama inválida. Debe tener 7 bits."
+import socket
 
-    # Calcular los bits de paridad
-    p1 = bits[0] ^ bits[2] ^ bits[4] ^ bits[6]
-    p2 = bits[1] ^ bits[2] ^ bits[5] ^ bits[6]
-    p3 = bits[3] ^ bits[4] ^ bits[5] ^ bits[6]
+SERVER_IP = "127.0.0.1"
+SERVER_PORT = 9090
 
-    error_pos = p1 * 1 + p2 * 2 + p3 * 4
+def corregir_hamming(bits: str) -> tuple[str, bool]:
+    corrected = []
+    error_detected = False
+    i = 0
+    while i < len(bits):
+        block = bits[i:i+7]
+        if len(block) < 7:
+            break
+        b = [int(x) for x in block]
+        p1, p2, d1, p3, d2, d3, d4 = b
 
-    if error_pos == 0:
-        data = [bits[2], bits[4], bits[5], bits[6]]
-        return f"No se detectaron errores. Datos: {''.join(map(str, data))}"
-    elif 1 <= error_pos <= 7:
-        bits[error_pos - 1] ^= 1  # Corregir bit
-        corrected = ''.join(map(str, bits))
-        data = [bits[2], bits[4], bits[5], bits[6]]
-        return (f"Se detectó y corrigió un error en la posición {error_pos}.\n"
-                f"Trama corregida: {corrected}\n"
-                f"Datos extraídos: {''.join(map(str, data))}")
-    else:
-        return "Error: posición de bit no válida."
+        c1 = p1 ^ d1 ^ d2 ^ d4
+        c2 = p2 ^ d1 ^ d3 ^ d4
+        c3 = p3 ^ d2 ^ d3 ^ d4
+        syndrome = c1*1 + c2*2 + c3*4
 
+        if syndrome != 0:
+            error_detected = True
+            if syndrome <= 7:
+                b[syndrome-1] ^= 1
+            else:
+                return ("", True)
+
+        corrected += [b[2], b[4], b[5], b[6]]
+        i += 7
+
+    return ("".join(str(x) for x in corrected), not error_detected)
+
+def decodificar_mensaje(bits: str) -> str:
+    return ''.join(chr(int(bits[i:i+8], 2)) for i in range(0, len(bits), 8))
+
+def recibir_socket():
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        s.bind((SERVER_IP, SERVER_PORT))
+        s.listen()
+
+        print(f"Receptor escuchando en {SERVER_IP}:{SERVER_PORT}")
+        conn, addr = s.accept()
+        with conn:
+            data = conn.recv(4096)
+            trama = data.decode()
+            print(f"Trama recibida: {trama}")
+
+            datos, ok = corregir_hamming(trama)
+            if ok:
+                mensaje = decodificar_mensaje(datos)
+                print(f"Mensaje recibido (corregido si era necesario): {mensaje}")
+            else:
+                print("Error múltiple detectado, mensaje perdido.")
 
 if __name__ == "__main__":
-    trama = input("Ingrese la trama Hamming (7 bits): ")
-    print(verificar_y_corregir(trama))
+    recibir_socket()

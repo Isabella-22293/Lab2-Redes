@@ -1,88 +1,130 @@
 #include <iostream>
 #include <bitset>
 #include <vector>
+#include <string>
 #include <random>
 #include <ctime>
-#include <iomanip>  // para setw
+#include <cstring>    // memset
+#include <unistd.h>   // close()
+#include <arpa/inet.h>
+#include <sys/socket.h>
 
 using namespace std;
 
-// ========== CAPA PRESENTACIÓN ==========
+#define SERVER_IP "127.0.0.1"
+#define SERVER_PORT 9090
+#define PROB_ERROR 0.005  // Puedes probar con 0.001 o menos para menos errores
+
+// ==================== PRESENTACION ====================
 string codificarMensaje(const string& mensaje) {
     string binario = "";
     for (char c : mensaje) {
-        binario += bitset<8>(c).to_string();  // Convertir cada char a 8 bits ASCII
+        binario += bitset<8>(c).to_string();
     }
     return binario;
 }
 
-// ========== CAPA ENLACE ==========
-string calcularIntegridadHamming(const string& binario) {
-    string resultado = "";
-    for (size_t i = 0; i < binario.length(); i += 4) {
-        string bloque = binario.substr(i, 4);
-        while (bloque.length() < 4) bloque += "0";  // Padding si el bloque < 4 bits
-
-        int d1 = bloque[0] - '0';
-        int d2 = bloque[1] - '0';
-        int d3 = bloque[2] - '0';
-        int d4 = bloque[3] - '0';
-
-        int p1 = d1 ^ d2 ^ d4;
-        int p2 = d1 ^ d3 ^ d4;
-        int p3 = d2 ^ d3 ^ d4;
-
-        // Orden: P1 P2 D1 P3 D2 D3 D4
-        resultado += to_string(p1) + to_string(p2) + to_string(d1) +
-                     to_string(p3) + to_string(d2) + to_string(d3) + to_string(d4);
-    }
-    return resultado;
+// ==================== ENLACE: Hamming (7,4) ====================
+vector<int> stringToBits(const string& s) {
+    vector<int> bits;
+    for (char c : s) bits.push_back(c - '0');
+    return bits;
 }
 
-// ========== CAPA RUIDO ==========
-string aplicarRuido(const string& trama, double probabilidad_error) {
-    string resultado = trama;
-    default_random_engine rng(time(0));
+string bitsToString(const vector<int>& bits) {
+    string s = "";
+    for (int b : bits) s += (b ? '1' : '0');
+    return s;
+}
+
+vector<int> aplicarHamming(const string& bits) {
+    vector<int> in = stringToBits(bits);
+    vector<int> out;
+    for (size_t i = 0; i < in.size(); i += 4) {
+        int d1 = in[i];
+        int d2 = (i+1<in.size()) ? in[i+1] : 0;
+        int d3 = (i+2<in.size()) ? in[i+2] : 0;
+        int d4 = (i+3<in.size()) ? in[i+3] : 0;
+
+        int p1 = (d1 ^ d2 ^ d4);
+        int p2 = (d1 ^ d3 ^ d4);
+        int p3 = (d2 ^ d3 ^ d4);
+
+        out.push_back(p1);
+        out.push_back(p2);
+        out.push_back(d1);
+        out.push_back(p3);
+        out.push_back(d2);
+        out.push_back(d3);
+        out.push_back(d4);
+    }
+    return out;
+}
+
+// ==================== RUIDO ====================
+string aplicarRuido(const string& bits) {
+    string corrupto = bits;
+    default_random_engine gen(time(0));
     uniform_real_distribution<double> dist(0.0, 1.0);
 
-    for (char& bit : resultado) {
-        if (dist(rng) < probabilidad_error) {
-            bit = (bit == '0') ? '1' : '0';  // Voltear bit
+    size_t blockSize = 7;
+    for (size_t i = 0; i < corrupto.size(); i += blockSize) {
+        if (dist(gen) < PROB_ERROR) {
+            // Alterar solo un bit aleatorio dentro del bloque
+            uniform_int_distribution<int> bitDist(0, blockSize - 1);
+            size_t errorPos = i + bitDist(gen);
+            if (errorPos < corrupto.size()) {
+                corrupto[errorPos] = (corrupto[errorPos] == '0') ? '1' : '0';
+            }
         }
     }
-    return resultado;
+    return corrupto;
 }
 
-// ========== CAPA APLICACIÓN ==========
-void emisor() {
+// ==================== TRANSMISION (Linux) ====================
+void enviarSocket(const string& trama) {
+    int sockfd;
+    struct sockaddr_in serverAddr;
+
+    sockfd = socket(AF_INET, SOCK_STREAM, 0);
+    if (sockfd < 0) {
+        perror("Error al crear socket");
+        return;
+    }
+
+    memset(&serverAddr, 0, sizeof(serverAddr));
+    serverAddr.sin_family = AF_INET;
+    serverAddr.sin_port = htons(SERVER_PORT);
+    inet_pton(AF_INET, SERVER_IP, &serverAddr.sin_addr);
+
+    if (connect(sockfd, (struct sockaddr*)&serverAddr, sizeof(serverAddr)) < 0) {
+        perror("Error al conectar con el servidor");
+        close(sockfd);
+        return;
+    }
+
+    send(sockfd, trama.c_str(), trama.size(), 0);
+    close(sockfd);
+}
+
+// ==================== MAIN ====================
+int main() {
     string mensaje;
-    cout << "\n========================= EMISOR =========================\n";
-    cout << "[APLICACIÓN] Ingrese el mensaje a enviar: ";
+    cout << "Ingrese mensaje a enviar: ";
     getline(cin, mensaje);
 
-    cout << "\n----------------------------------------------------------\n";
-    string binario = codificarMensaje(mensaje);
-    cout << "[PRESENTACIÓN] Binario codificado (ASCII):\n    "
-         << binario << endl;
+    string bits = codificarMensaje(mensaje);
+    vector<int> hammingBits = aplicarHamming(bits);
+    string trama = bitsToString(hammingBits);
 
-    cout << "\n----------------------------------------------------------\n";
-    string trama_hamming = calcularIntegridadHamming(binario);
-    cout << "[ENLACE] Trama codificada con Hamming (7,4):\n    "
-         << trama_hamming << endl;
+    cout << "Trama sin ruido: " << trama << "\n";
 
-    cout << "\n----------------------------------------------------------\n";
-    double prob;
-    cout << "[RUIDO] Ingrese probabilidad de error (ej. 0.01 = 1%): ";
-    cin >> prob;
+    string tramaRuidosa = aplicarRuido(trama);
 
-    string trama_ruido = aplicarRuido(trama_hamming, prob);
-    cout << "\n[RUIDO] Trama con posible error aplicado:\n    "
-         << trama_ruido << endl;
+    cout << "Trama con ruido:  " << tramaRuidosa << "\n";
 
-    cout << "==========================================================\n";
-}
+    enviarSocket(tramaRuidosa);
 
-int main() {
-    emisor();
+    cout << "Mensaje enviado con Hamming y posible ruido.\n";
     return 0;
 }
