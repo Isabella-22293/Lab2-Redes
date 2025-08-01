@@ -3,7 +3,6 @@
 #include <bitset>
 using namespace std;
 
-// ===== Capa Enlace =====
 unsigned int crc32_receptor(const string& input) {
     unsigned int poly = 0x04C11DB7;
     unsigned int crc = 0;
@@ -19,7 +18,6 @@ unsigned int crc32_receptor(const string& input) {
     return crc;
 }
 
-// ===== Capa Presentación =====
 string decodificar_ascii_binario(const string& binario) {
     string mensaje;
     for (size_t i = 0; i < binario.size(); i += 8) {
@@ -29,18 +27,15 @@ string decodificar_ascii_binario(const string& binario) {
     return mensaje;
 }
 
-// ===== Ejecución Receptor =====
 int main() {
     string trama;
-    cout << "Ingrese la trama generada: ";
+    cout << "Ingrese trama recibida: ";
     cin >> trama;
 
     if (crc32_receptor(trama) == 0) {
-        string mensaje_original = decodificar_ascii_binario(trama.substr(0, trama.size() - 32));
-        cout << "[RECEPTOR] Trama valida. Mensaje: " << mensaje_original << endl;
+        cout << "[RECEPTOR] Trama valida. Mensaje: " 
+             << decodificar_ascii_binario(trama.substr(0, trama.size() - 32)) << endl;
     } else {
         cout << "[RECEPTOR] Error detectado: trama invalida." << endl;
     }
-
-    return 0;
 }

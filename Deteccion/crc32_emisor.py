@@ -1,42 +1,74 @@
 import random
-
-# ===== Capa Aplicación =====
-def solicitar_mensaje():
-    mensaje = input("Ingrese el mensaje a enviar: ")
-    return mensaje
+import zlib
 
 # ===== Capa Presentación =====
 def codificar_ascii_binario(mensaje):
     return ''.join(format(ord(c), '08b') for c in mensaje)
 
+def decodificar_ascii_binario(binario):
+    mensaje = ''
+    for i in range(0, len(binario), 8):
+        byte = binario[i:i+8]
+        mensaje += chr(int(byte, 2))
+    return mensaje
+
 # ===== Capa Enlace (CRC32) =====
-def crc32_emisor(data_binaria):
-    polinomio = 0x104C11DB7
-    data = data_binaria + '0' * 32
-    data = list(map(int, data))
+def calcular_crc32(binario):
+    # Convertimos binario a bytes para usar CRC32 de zlib
+    data_bytes = int(binario, 2).to_bytes(len(binario) // 8, byteorder='big')
+    return format(zlib.crc32(data_bytes) & 0xFFFFFFFF, '032b')
 
-    for i in range(len(data_binaria)):
-        if data[i] == 1:
-            for j in range(33):
-                data[i + j] ^= (polinomio >> (32 - j)) & 1
-
-    crc = ''.join(map(str, data[-32:]))
-    return data_binaria + crc
+def verificar_crc32(binario, crc_recibido):
+    crc_calculado = calcular_crc32(binario)
+    return crc_calculado == crc_recibido
 
 # ===== Capa Ruido =====
-def aplicar_ruido(trama, prob_error=0.01):
-    trama_lista = list(trama)
-    for i in range(len(trama_lista)):
-        if random.random() < prob_error:
-            trama_lista[i] = '0' if trama_lista[i] == '1' else '1'
-    return ''.join(trama_lista)
+def aplicar_ruido(trama, prob):
+    trama_ruidosa = ''
+    for bit in trama:
+        if random.random() < prob:
+            trama_ruidosa += '1' if bit == '0' else '0'
+        else:
+            trama_ruidosa += bit
+    return trama_ruidosa
 
-# ===== Ejecución Emisor =====
-if __name__ == "__main__":
-    mensaje = solicitar_mensaje()
+# ===== Simulación de envío-recepción =====
+def prueba_transmision(mensaje, prob_ruido):
+    # Emisor
     binario = codificar_ascii_binario(mensaje)
-    trama_crc = crc32_emisor(binario)
-    trama_con_ruido = aplicar_ruido(trama_crc, prob_error=0.02)
+    crc = calcular_crc32(binario)
+    trama = binario + crc
 
-    print("\n[EMISOR] Trama generada:", trama_crc)
-    print("[EMISOR] Trama con ruido:", trama_con_ruido)
+    # Ruido
+    trama_con_ruido = aplicar_ruido(trama, prob_ruido)
+
+    # Receptor
+    binario_recibido = trama_con_ruido[:-32]
+    crc_recibido = trama_con_ruido[-32:]
+    valido = verificar_crc32(binario_recibido, crc_recibido)
+
+    return valido, mensaje, decodificar_ascii_binario(binario_recibido)
+
+# ===== Pruebas automáticas =====
+if __name__ == "__main__":
+    mensajes = ["Hola", "Redes", "CRC32", "Prueba"]
+    probabilidades = [0.0, 0.01, 0.05]
+    total = 0
+    exitos = 0
+
+    for msg in mensajes:
+        for p in probabilidades:
+            valido, original, recibido = prueba_transmision(msg, p)
+            total += 1
+            if valido:
+                exitos += 1
+
+            print("\n=== Prueba ===")
+            print(f"Mensaje original: {original}")
+            print(f"Probabilidad ruido: {p}")
+            print(f"Resultado: {'OK' if valido else 'ERROR'}")
+            print(f"Mensaje recibido: {recibido}")
+
+    print("\n=== Resumen ===")
+    print(f"Pruebas exitosas: {exitos}/{total}")
+    print(f"Tasa de éxito: {exitos/total*100:.2f}%")
