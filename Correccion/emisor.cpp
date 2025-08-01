@@ -13,7 +13,7 @@ using namespace std;
 
 #define SERVER_IP "127.0.0.1"
 #define SERVER_PORT 9090
-#define PROB_ERROR 0.005  // Puedes probar con 0.001 o menos para menos errores
+#define PROB_ERROR 0.005  
 
 // ==================== PRESENTACION ====================
 string codificarMensaje(const string& mensaje) {
@@ -61,21 +61,47 @@ vector<int> aplicarHamming(const string& bits) {
     return out;
 }
 
+// ==================== ENLACE: CRC (8 bits, polinomio 100000111) ====================
+string aplicarCRC(const string& bits) {
+    string mensajeExtendido = bits + string(8, '0');
+    size_t len = mensajeExtendido.size();
+    unsigned int polinomio = 0x107; 
+
+    unsigned long long datos = 0;
+    for (size_t i = 0; i < len; i++) {
+        datos <<= 1;
+        if (mensajeExtendido[i] == '1') datos |= 1;
+    }
+
+    size_t mensajeLen = bits.size();
+    size_t totalLen = mensajeLen + 8;
+
+    for (size_t i = 0; i < mensajeLen; i++) {
+        if ((datos >> (totalLen - 1 - i)) & 1) {
+            datos ^= (unsigned long long)polinomio << (mensajeLen - 1 - i);
+        }
+    }
+
+    // Extraer CRC (últimos 8 bits)
+    unsigned int crc = datos & 0xFF;
+
+    // Construir resultado: bits originales + crc en binario 8 bits
+    string crcStr = "";
+    for (int i = 7; i >= 0; i--) {
+        crcStr += ((crc >> i) & 1) ? '1' : '0';
+    }
+    return bits + crcStr;
+}
+
 // ==================== RUIDO ====================
 string aplicarRuido(const string& bits) {
     string corrupto = bits;
-    default_random_engine gen(time(0));
+    static default_random_engine gen(time(0));
     uniform_real_distribution<double> dist(0.0, 1.0);
 
-    size_t blockSize = 7;
-    for (size_t i = 0; i < corrupto.size(); i += blockSize) {
+    for (size_t i = 0; i < corrupto.size(); i++) {
         if (dist(gen) < PROB_ERROR) {
-            // Alterar solo un bit aleatorio dentro del bloque
-            uniform_int_distribution<int> bitDist(0, blockSize - 1);
-            size_t errorPos = i + bitDist(gen);
-            if (errorPos < corrupto.size()) {
-                corrupto[errorPos] = (corrupto[errorPos] == '0') ? '1' : '0';
-            }
+            corrupto[i] = (corrupto[i] == '0') ? '1' : '0';
         }
     }
     return corrupto;
@@ -109,22 +135,34 @@ void enviarSocket(const string& trama) {
 
 // ==================== MAIN ====================
 int main() {
-    string mensaje;
     cout << "Ingrese mensaje a enviar: ";
+    string mensaje;
     getline(cin, mensaje);
 
+    string algoritmo;
+    cout << "Seleccione algoritmo para comprobación de integridad (hamming/crc): ";
+    getline(cin, algoritmo);
+    if (algoritmo != "hamming" && algoritmo != "crc") {
+        cout << "Algoritmo no soportado. Usando hamming por defecto.\n";
+        algoritmo = "hamming";
+    }
+
     string bits = codificarMensaje(mensaje);
-    vector<int> hammingBits = aplicarHamming(bits);
-    string trama = bitsToString(hammingBits);
+    string trama;
+    if (algoritmo == "hamming") {
+        vector<int> hammingBits = aplicarHamming(bits);
+        trama = bitsToString(hammingBits);
+    } else if (algoritmo == "crc") {
+        trama = aplicarCRC(bits);
+    }
 
     cout << "Trama sin ruido: " << trama << "\n";
-
     string tramaRuidosa = aplicarRuido(trama);
-
     cout << "Trama con ruido:  " << tramaRuidosa << "\n";
+    string tramaCompleta = algoritmo + ":" + tramaRuidosa;
+    
+    enviarSocket(tramaCompleta);
+    cout << "Mensaje enviado con " << algoritmo << " y posible ruido.\n";
 
-    enviarSocket(tramaRuidosa);
-
-    cout << "Mensaje enviado con Hamming y posible ruido.\n";
     return 0;
 }
